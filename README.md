@@ -2,6 +2,12 @@
 
 *   首先致谢虾哥的开源项目：https://github.com/78/xiaozhi-esp32
 
+
+
+# 开发笔记
+board代码位于 `main\boards\doit-ai-eye-vision\doit-ai-01-kit-lcd.cc`
+
+
 ## 项目简介
 ESP32-S3作为主控，驱动两个1.28寸双目，一个摄像头，并且支持4个触目节点，软件硬件全开源
 
