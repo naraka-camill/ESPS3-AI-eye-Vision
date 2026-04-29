@@ -515,6 +515,7 @@ void Application::Start() {
                         }
                     }
                 });
+            // 回复台词文本
             } else if (strcmp(state->valuestring, "sentence_start") == 0) {
                 auto text = cJSON_GetObjectItem(root, "text");
                 if (cJSON_IsString(text)) {
@@ -524,6 +525,7 @@ void Application::Start() {
                     });
                 }
             }
+        // 语音转文字（和小智对话）
         } else if (strcmp(type->valuestring, "stt") == 0) {
             auto text = cJSON_GetObjectItem(root, "text");
             if (cJSON_IsString(text)) {

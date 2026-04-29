@@ -232,7 +232,10 @@ void Display::SetIcon(const char* icon) {
 }
 
 void Display::SetPreviewImage(const lv_img_dsc_t* image) {
-    // Do nothing
+    // 基类默认不实现预览功能。
+    // 子类（如 LcdDisplay）需要重写此方法以支持摄像头预览。
+    // 对于不支持图像预览的显示类型（如 OLED），此空实现是预期的行为。
+    ESP_LOGW(TAG, "SetPreviewImage not implemented: preview not supported by this display type");
 }
 
 void Display::SetChatMessage(const char* role, const char* content) {

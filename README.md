@@ -21,13 +21,13 @@ https://mxgc9pajxfs.feishu.cn/wiki/FyfjwZfLzioMt2kcWkicZBMbnTe?from=from_copylin
 
 ## 📺 效果视频
 
-[B站演示视频](https://www.bilibili.com/video/BV1j2TrzmEWu)
+https://www.bilibili.com/video/BV1j2TrzmEWu
 
 ---
 
 ## 📖 项目简介
 
-**DOIT AI EYE VISION** 是一款基于 **ESP32-S3** 的多模态AI开发板，集成了**双目1.28英寸圆形LCD屏幕**、**摄像头**和**4个触摸节点**，支持完整的**小智AI语音助手**功能。
+**DOIT AI EYE VISION** 是一款基于 **ESP32-S3** 的多模态AI开发板，集成了**1.28英寸圆形LCD屏幕**、**摄像头**和**4个触摸节点**，支持完整的**小智AI语音助手**功能。
 
 ### ✨ 核心特色
 
@@ -171,7 +171,7 @@ ESPS3_AI_EYE_Vision/
 
 ## 🔧 硬件引脚定义
 
-详细引脚定义见 [config.h](main/boards/doit-ai-eye-vision/config.h)
+详细引脚定义见 [main/boards/doit-ai-eye-vision/config.h](main/boards/doit-ai-eye-vision/config.h)
 
 ### LCD 显示屏 (双目)
 

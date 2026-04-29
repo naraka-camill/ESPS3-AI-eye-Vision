@@ -8,6 +8,7 @@
 #include <esp_heap_caps.h>
 #include <img_converters.h>
 #include <cstring>
+#include <algorithm>
 
 #define TAG "Esp32Camera"
 
@@ -68,6 +69,10 @@ Esp32Camera::Esp32Camera(const camera_config_t& config) {
 }
 
 Esp32Camera::~Esp32Camera() {
+    StopPreview();
+    if (encoder_thread_.joinable()) {
+        encoder_thread_.join();
+    }
     if (fb_) {
         esp_camera_fb_return(fb_);
         fb_ = nullptr;
@@ -115,15 +120,11 @@ bool Esp32Camera::Capture() {
     // 显示预览图片
     auto display = Board::GetInstance().GetDisplay();
     if (display != nullptr) {
-        auto src = (uint16_t*)fb_->buf;
-        auto dst = (uint16_t*)preview_image_.data;
-        size_t pixel_count = fb_->len / 2;
-        for (size_t i = 0; i < pixel_count; i++) {
-            // 交换每个16位字内的字节
-            dst[i] = __builtin_bswap16(src[i]);
-        }
         display->SetPreviewImage(&preview_image_);
     }
+
+    OnceCapPreview();
+
     return true;
 }
 bool Esp32Camera::SetHMirror(bool enabled) {
@@ -299,5 +300,120 @@ std::string Esp32Camera::Explain(const std::string& question) {
     size_t remain_stack_size = uxTaskGetStackHighWaterMark(nullptr);
     ESP_LOGI(TAG, "Explain image size=%dx%d, compressed size=%d, remain stack size=%d, question=%s\n%s",
         fb_->width, fb_->height, total_sent, remain_stack_size, question.c_str(), result.c_str());
+
+    StopPreview();
+
     return result;
+}
+
+void Esp32Camera::OnceCapPreview()
+{
+    if (eye_panel1_ == nullptr) {
+        return;
+    }
+
+    vTaskSuspend(eye_task_handle_);
+
+    // 中心裁剪并推送
+    int src_w = fb_->width;
+    int src_h = fb_->height;
+    int dst_w = std::min(src_w, 240);
+    int dst_h = std::min(src_h, 240);
+    int crop_x = (src_w - dst_w) / 2;
+    int crop_y = (src_h - dst_h) / 2;
+
+    auto src = (const uint16_t*)fb_->buf;
+    uint16_t line_buf[240];
+
+    for (int y = 0; y < dst_h; y++) {
+        for (int x = 0; x < dst_w; x++) {
+            // 摄像头输出已经是小端（与ESP32 CPU端序一致），无需字节交换
+            // GC9A01设为BGR模式，摄像头数据直接按RGB565格式发送即可
+            line_buf[x] = src[(crop_y + y) * src_w + (crop_x + x)];
+        }
+        esp_lcd_panel_draw_bitmap(eye_panel1_, 0, y, dst_w, y + 1, line_buf);
+        esp_lcd_panel_draw_bitmap(eye_panel2_, 0, y, dst_w, y + 1, line_buf);
+    }
+}
+
+void Esp32Camera::StartPreview()
+{
+    if (preview_running_ || eye_panel1_ == nullptr) {
+        return;
+    }
+    preview_running_ = true;
+
+    preview_thread_ = std::thread([this]() {
+        ESP_LOGI(TAG, "Camera preview started");
+        bool eye_suspended = false;
+        int consecutive_failures = 0;
+
+        while (preview_running_) {
+            camera_fb_t* fb = esp_camera_fb_get();
+            if (fb == nullptr) {
+                ESP_LOGE(TAG, "Preview: camera capture failed");
+                consecutive_failures++;
+
+                // 连续失败多次后恢复魔眼动画，避免屏幕静止
+                if (consecutive_failures >= 5 && eye_suspended) {
+                    ESP_LOGW(TAG, "Camera keeps failing, resuming eye animation");
+                    if (eye_task_handle_ != nullptr) {
+                        vTaskResume(eye_task_handle_);
+                    }
+                    eye_suspended = false;
+                }
+
+                vTaskDelay(pdMS_TO_TICKS(50));
+                continue;
+            }
+
+            consecutive_failures = 0;
+
+            // 首次成功捕获帧时，暂停魔眼动画
+            if (!eye_suspended && eye_task_handle_ != nullptr) {
+                vTaskSuspend(eye_task_handle_);
+                eye_suspended = true;
+            }
+
+            // 中心裁剪并推送
+            int src_w = fb->width;
+            int src_h = fb->height;
+            int dst_w = std::min(src_w, 240);
+            int dst_h = std::min(src_h, 240);
+            int crop_x = (src_w - dst_w) / 2;
+            int crop_y = (src_h - dst_h) / 2;
+
+            auto src = (const uint16_t*)fb->buf;
+            uint16_t line_buf[240];
+
+            for (int y = 0; y < dst_h; y++) {
+                for (int x = 0; x < dst_w; x++) {
+                    // 摄像头输出已经是小端（与ESP32 CPU端序一致），无需字节交换
+                    // GC9A01设为BGR模式，摄像头数据直接按RGB565格式发送即可
+                    line_buf[x] = src[(crop_y + y) * src_w + (crop_x + x)];
+                }
+                esp_lcd_panel_draw_bitmap(eye_panel1_, 0, y, dst_w, y + 1, line_buf);
+                esp_lcd_panel_draw_bitmap(eye_panel2_, 0, y, dst_w, y + 1, line_buf);
+            }
+
+            esp_camera_fb_return(fb);
+
+            vTaskDelay(pdMS_TO_TICKS(50));
+        }
+
+        // 预览结束时恢复魔眼动画
+        if (eye_suspended && eye_task_handle_ != nullptr) {
+            vTaskResume(eye_task_handle_);
+        }
+
+        ESP_LOGI(TAG, "Camera preview stopped");
+    });
+}
+
+void Esp32Camera::StopPreview() {
+    preview_running_ = false;
+    if (preview_thread_.joinable()) {
+        preview_thread_.join();
+    }
+    ResumeEyeTask();
 }

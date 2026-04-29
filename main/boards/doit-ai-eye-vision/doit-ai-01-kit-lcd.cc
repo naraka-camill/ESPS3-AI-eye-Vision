@@ -253,6 +253,8 @@ public:
         lcd_mutex_init();
         InitializeDualScreenEye();
         InitializeCamera();
+        camera_->SetEyePanels(lcd_panel_eye, lcd_panel_eye2, task_update_eye_handler);
+        // camera_->StartPreview();  // 上电后直接实时预览摄像头画面
 
         // GetBacklight()->RestoreBrightness();
         audio_codec.OnWakeUp([this](const std::string& command) {
